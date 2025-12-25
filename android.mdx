@@ -1,0 +1,765 @@
+---
+title: 'Android SDK'
+description: 'Native Kotlin SDK for email validation and device fingerprinting on Android'
+---
+
+## Overview
+
+The Vouch Android SDK provides email validation and device fingerprinting for native Android applications. Built with Kotlin, it integrates seamlessly with both Jetpack Compose and traditional Views.
+
+<Note>
+    **Package:** `com.github.Vouch-IN:vouch-sdk-android`
+    **Platform:** Android 8.0+ (API 26+)
+    **Language:** Kotlin 1.9+
+    **Distribution:** JitPack (Gradle/Maven)
+</Note>
+
+## Installation
+
+### JitPack (Recommended)
+
+Add JitPack repository to your project's `settings.gradle.kts`:
+
+```kotlin settings.gradle.kts
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+Add the dependency to your app's `build.gradle.kts`:
+
+```kotlin build.gradle.kts
+dependencies {
+    implementation("com.github.Vouch-IN:vouch-sdk-android:v0.1.7")
+}
+```
+
+### Permissions
+
+Add internet permission to your `AndroidManifest.xml`:
+
+```xml AndroidManifest.xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+<Info>
+    **No other permissions required.** The SDK only needs internet access to communicate with the Vouch API.
+</Info>
+
+## Quick Start
+
+```kotlin
+import expert.vouch.sdk.Vouch
+import kotlinx.coroutines.launch
+
+// Initialize the SDK
+val vouch = Vouch(
+    context = applicationContext,
+    projectId = "your-project-id",
+    apiKey = "your-client-api-key"
+)
+
+// Validate an email
+lifecycleScope.launch {
+    val result = vouch.validate("user@example.com")
+
+    // Check the validation data
+    result.data?.let { data ->
+        when (data) {
+            is ValidationData.Validation -> {
+                println("✅ Email validated: ${result.email}")
+                println("Recommendation: ${data.response.recommendation}")
+                println("Signals: ${data.response.signals}")
+            }
+            is ValidationData.Error -> {
+                println("❌ Error: ${data.response.error}")
+                println("Message: ${data.response.message}")
+            }
+        }
+    }
+}
+```
+
+## Jetpack Compose Integration
+
+### Basic Form Validation
+
+```kotlin
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import expert.vouch.sdk.Vouch
+import kotlinx.coroutines.launch
+
+@Composable
+fun SignUpScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val vouch = remember {
+        Vouch(
+            context = context.applicationContext,
+            projectId = "your-project-id",
+            apiKey = "your-client-api-key"
+        )
+    }
+
+    var email by remember { mutableStateOf("") }
+    var isValidating by remember { mutableStateOf(false) }
+    var validationMessage by remember { mutableStateOf<String?>(null) }
+    var isValid by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        OutlinedTextField(
+            value = email,
+            onValueChange = {
+                email = it
+                validationMessage = null
+            },
+            label = { Text("Email Address") },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isValidating,
+            singleLine = true
+        )
+
+        Button(
+            onClick = {
+                scope.launch {
+                    isValidating = true
+                    validationMessage = null
+
+                    val result = vouch.validate(email)
+
+                    isValidating = false
+
+                    result.data?.let { data ->
+                        when (data) {
+                            is ValidationData.Validation -> {
+                                isValid = true
+                                validationMessage = "✓ Valid (${data.response.recommendation})"
+                                // Proceed with sign-up
+                            }
+                            is ValidationData.Error -> {
+                                isValid = false
+                                validationMessage = data.response.message
+                            }
+                        }
+                    } ?: run {
+                        isValid = false
+                        validationMessage = result.error ?: "Email validation failed"
+                    }
+                }
+            },
+            enabled = !isValidating && email.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (isValidating) "Validating..." else "Sign Up")
+        }
+
+        validationMessage?.let { message ->
+            Text(
+                text = message,
+                color = if (isValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        if (isValidating) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+```
+
+### Real-Time Validation
+
+```kotlin
+import androidx.compose.runtime.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+@Composable
+fun RealtimeEmailField() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val vouch = remember {
+        Vouch(
+            context = context.applicationContext,
+            projectId = "your-project-id",
+            apiKey = "your-client-api-key"
+        )
+    }
+
+    var email by remember { mutableStateOf("") }
+    var validationState by remember { mutableStateOf<ValidationState>(ValidationState.Idle) }
+    var validationJob by remember { mutableStateOf<Job?>(null) }
+
+    LaunchedEffect(email) {
+        validationJob?.cancel()
+
+        if (email.isEmpty()) {
+            validationState = ValidationState.Idle
+            return@LaunchedEffect
+        }
+
+        validationState = ValidationState.Validating
+
+        validationJob = scope.launch {
+            delay(500) // Debounce
+
+            val result = vouch.validate(email)
+
+            validationState = result.data?.let { data ->
+                when (data) {
+                    is ValidationData.Validation -> {
+                        if (data.response.recommendation == ValidationResponseData.Recommendation.ALLOW) {
+                            ValidationState.Valid
+                        } else {
+                            ValidationState.Invalid("Email flagged: ${data.response.recommendation}")
+                        }
+                    }
+                    is ValidationData.Error -> {
+                        ValidationState.Invalid(data.response.message)
+                    }
+                }
+            } ?: ValidationState.Invalid(result.error ?: "Invalid email")
+        }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            label = { Text("Email") },
+            modifier = Modifier.weight(1f),
+            singleLine = true,
+            isError = validationState is ValidationState.Invalid
+        )
+
+        when (validationState) {
+            ValidationState.Idle -> {}
+            ValidationState.Validating -> CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            ValidationState.Valid -> Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "Valid",
+                tint = MaterialTheme.colorScheme.primary
+            )
+            is ValidationState.Invalid -> Icon(
+                imageVector = Icons.Default.Error,
+                contentDescription = "Invalid",
+                tint = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+
+    if (validationState is ValidationState.Invalid) {
+        Text(
+            text = (validationState as ValidationState.Invalid).message,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+sealed class ValidationState {
+    object Idle : ValidationState()
+    object Validating : ValidationState()
+    object Valid : ValidationState()
+    data class Invalid(val message: String) : ValidationState()
+}
+```
+
+## Traditional View/Activity Integration
+
+### Basic Usage
+
+```kotlin
+import android.os.Bundle
+import android.widget.Button
+import android.widget.EditText
+import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import expert.vouch.sdk.Vouch
+import kotlinx.coroutines.launch
+
+class SignUpActivity : AppCompatActivity() {
+    private val vouch by lazy {
+        Vouch(
+            context = applicationContext,
+            projectId = "your-project-id",
+            apiKey = "your-client-api-key"
+        )
+    }
+
+    private lateinit var emailEditText: EditText
+    private lateinit var signUpButton: Button
+    private lateinit var resultTextView: TextView
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_signup)
+
+        emailEditText = findViewById(R.id.emailEditText)
+        signUpButton = findViewById(R.id.signUpButton)
+        resultTextView = findViewById(R.id.resultTextView)
+
+        signUpButton.setOnClickListener {
+            val email = emailEditText.text.toString()
+
+            if (email.isEmpty()) {
+                resultTextView.text = "Please enter an email address"
+                resultTextView.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_dark))
+                return@setOnClickListener
+            }
+
+            signUpButton.isEnabled = false
+            resultTextView.text = "Validating..."
+            resultTextView.setTextColor(ContextCompat.getColor(this, android.R.color.darker_gray))
+
+            lifecycleScope.launch {
+                val result = vouch.validate(email)
+
+                signUpButton.isEnabled = true
+
+                result.data?.let { data ->
+                    when (data) {
+                        is ValidationData.Validation -> {
+                            val recommendation = data.response.recommendation
+                            resultTextView.text = "✓ Valid ($recommendation)"
+                            resultTextView.setTextColor(ContextCompat.getColor(this@SignUpActivity, android.R.color.holo_green_dark))
+                            // Proceed with sign-up
+                        }
+                        is ValidationData.Error -> {
+                            resultTextView.text = data.response.message
+                            resultTextView.setTextColor(ContextCompat.getColor(this@SignUpActivity, android.R.color.holo_red_dark))
+                        }
+                    }
+                } ?: run {
+                    resultTextView.text = result.error ?: "Invalid email"
+                    resultTextView.setTextColor(ContextCompat.getColor(this@SignUpActivity, android.R.color.holo_red_dark))
+                }
+            }
+        }
+    }
+}
+```
+
+### With ViewModel (MVVM Pattern)
+
+```kotlin
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import expert.vouch.sdk.Vouch
+import expert.vouch.sdk.models.ValidationResult
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+
+class SignUpViewModel(private val vouch: Vouch) : ViewModel() {
+    private val _validationState = MutableStateFlow<ValidationResult?>(null)
+    val validationState: StateFlow<ValidationResult?> = _validationState
+
+    private val _isValidating = MutableStateFlow(false)
+    val isValidating: StateFlow<Boolean> = _isValidating
+
+    fun validateEmail(email: String) {
+        viewModelScope.launch {
+            _isValidating.value = true
+            _validationState.value = null
+
+            val result = vouch.validate(email)
+
+            _validationState.value = result
+            _isValidating.value = false
+        }
+    }
+}
+```
+
+## Configuration
+
+### Custom Options
+
+```kotlin
+import expert.vouch.sdk.Vouch
+import expert.vouch.sdk.models.VouchOptions
+import expert.vouch.sdk.models.ApiVersion
+
+val options = VouchOptions(
+    endpoint = "https://api.vouch.expert",
+    version = ApiVersion.Version(1)  // Use /v1/ endpoint
+)
+
+val vouch = Vouch(
+    context = applicationContext,
+    projectId = "your-project-id",
+    apiKey = "your-client-api-key",
+    options = options
+)
+```
+
+### API Version
+
+Control which API version to use:
+
+```kotlin
+// Use latest (unversioned) endpoint
+val options = VouchOptions(version = ApiVersion.Latest)
+
+// Use specific version
+val options = VouchOptions(version = ApiVersion.Version(1))  // Uses /v1/
+```
+
+## Core Methods
+
+### validate()
+
+Validate an email address with automatic device fingerprinting:
+
+```kotlin
+val result = vouch.validate("user@example.com")
+
+// Check validation result
+result.data?.let { data ->
+    when (data) {
+        is ValidationData.Validation -> {
+            println("Valid email: ${result.email}")
+            println("Recommendation: ${data.response.recommendation}")
+        }
+        is ValidationData.Error -> {
+            println("Error: ${data.response.error} - ${data.response.message}")
+        }
+    }
+}
+```
+
+**Returns:** `ValidationResult`
+
+<ResponseField name="email" type="String?">
+    The normalized email address
+</ResponseField>
+
+<ResponseField name="error" type="String?">
+    Error message if request failed
+</ResponseField>
+
+<ResponseField name="data" type="ValidationData?">
+    Response data from server (sealed class with Validation or Error)
+</ResponseField>
+
+<ResponseField name="statusCode" type="Int?">
+    HTTP status code
+</ResponseField>
+
+**ValidationData sealed class:**
+
+- `ValidationData.Validation(response: ValidationResponseData)` - Successful validation with checks, metadata, and recommendation
+- `ValidationData.Error(response: ErrorResponseData)` - API error with error code and message
+
+### generateFingerprint()
+
+Get the device fingerprint directly without validating an email:
+
+```kotlin
+val fingerprint = vouch.generateFingerprint()
+
+println("Device: ${fingerprint.hardware.deviceModel}")
+println("Manufacturer: ${fingerprint.hardware.manufacturer}")
+println("Screen: ${fingerprint.hardware.screenWidth}x${fingerprint.hardware.screenHeight}")
+println("OS: Android ${fingerprint.system.osVersion}")
+```
+
+**Returns:** `Fingerprint` with the following signals:
+
+<ResponseField name="hardware" type="HardwareSignals">
+    Device hardware information (screen, CPU, memory, model, manufacturer)
+</ResponseField>
+
+<ResponseField name="fonts" type="FontSignals">
+    System fonts and SHA-256 hash
+</ResponseField>
+
+<ResponseField name="system" type="SystemSignals">
+    Android version, SDK level, language, locale, timezone
+</ResponseField>
+
+<ResponseField name="storage" type="StorageSignals">
+    SharedPreferences, KeyStore, FileSystem availability
+</ResponseField>
+
+<ResponseField name="timestamp" type="Long">
+    Unix timestamp in milliseconds
+</ResponseField>
+
+<ResponseField name="version" type="String">
+    SDK version (e.g., "2.0.0")
+</ResponseField>
+
+## Error Handling
+
+The SDK uses Kotlin suspend functions and returns results with three levels of error handling:
+
+### 1. Network/Request Errors (result.error and statusCode)
+
+```kotlin
+val result = vouch.validate(email)
+
+if (result.error != null) {
+    when (result.statusCode) {
+        0 -> showError("Network connection failed")
+        401 -> showError("Invalid API key")
+        else -> showError(result.error)
+    }
+}
+```
+
+### 2. API Errors (in ValidationData.Error)
+
+```kotlin
+result.data?.let { data ->
+    when (data) {
+        is ValidationData.Error -> {
+            // API returned an error (400 status, invalid format, etc.)
+            println("Error code: ${data.response.error}")  // e.g., "invalid_email"
+            println("Message: ${data.response.message}")  // e.g., "Email format is invalid"
+            showError(data.response.message)
+        }
+        is ValidationData.Validation -> {
+            // Handle successful validation
+            println("Recommendation: ${data.response.recommendation}")
+        }
+    }
+}
+```
+
+### 3. Handling Recommendations
+
+```kotlin
+result.data?.let { data ->
+    when (data) {
+        is ValidationData.Validation -> {
+            when (data.response.recommendation) {
+                ValidationResponseData.Recommendation.ALLOW -> {
+                    // Email is safe to use
+                    proceedWithSignup()
+                }
+                ValidationResponseData.Recommendation.FLAG -> {
+                    // Email flagged for review (e.g., disposable, alias)
+                    println("Signals: ${data.response.signals}")
+                    requestAdditionalVerification()
+                }
+                ValidationResponseData.Recommendation.BLOCK -> {
+                    // Email should be blocked
+                    showError("Email cannot be used for signup")
+                }
+            }
+        }
+        is ValidationData.Error -> {
+            // Handle error
+            showError(data.response.message)
+        }
+    }
+}
+```
+
+### Common Status Codes
+
+| Code | Description | Solution |
+|------|-------------|----------|
+| `200` | Success | Process the result |
+| `400` | Invalid request | Check email format |
+| `401` | Unauthorized | Verify API key and project ID |
+| `429` | Rate limit exceeded | Implement retry with backoff |
+| `0` | Network error | Check internet connection |
+
+## Privacy & Permissions
+
+### Minimal Permissions
+
+The Vouch Android SDK only requires the **INTERNET** permission:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+<Warning>
+    **No dangerous permissions required.** The SDK does not access location, camera, contacts, or any other sensitive data.
+</Warning>
+
+### Data Collection
+
+The SDK collects device fingerprint data for fraud prevention. You must disclose this in:
+
+1. **Your app's privacy policy**
+2. **Google Play Data Safety form**
+3. **GDPR/CCPA notices** (if applicable)
+
+**What data is collected:**
+- Hardware signals: Screen dimensions, CPU cores, memory, device model, manufacturer
+- Font signals: System fonts and SHA-256 hash
+- System signals: Android version, SDK level, language, locale, timezone
+- Storage signals: SharedPreferences, KeyStore, FileSystem availability
+
+<Info>
+    No personally identifiable information (PII) is collected. All data is technical device and system information.
+</Info>
+
+## ProGuard/R8
+
+The SDK is fully compatible with ProGuard and R8. Obfuscation rules are included automatically in the library.
+
+No additional configuration is required.
+
+## Performance
+
+- **Fingerprint Generation:** ~100-500ms (first time)
+- **Email Validation:** Instant local validation + network request time
+- **Font Collection:** ~200-1000ms (can be disabled)
+
+<Tip>
+    The SDK starts fingerprint generation immediately when initialized, so the first `validate()` call can reuse the cached fingerprint.
+</Tip>
+
+## Best Practices
+
+### 1. Initialize with Application Context
+
+Always use `applicationContext` to avoid memory leaks:
+
+```kotlin
+val vouch = Vouch(
+    context = applicationContext,  // ✓ Good
+    // context = this,  // ✗ Bad (Activity context)
+    projectId = "...",
+    apiKey = "..."
+)
+```
+
+### 2. Use Dependency Injection
+
+Inject the Vouch instance using Hilt or Koin:
+
+```kotlin
+// Hilt example
+@Module
+@InstallIn(SingletonComponent::class)
+object VouchModule {
+    @Provides
+    @Singleton
+    fun provideVouch(@ApplicationContext context: Context): Vouch {
+        return Vouch(
+            context = context,
+            projectId = BuildConfig.VOUCH_PROJECT_ID,
+            apiKey = BuildConfig.VOUCH_API_KEY
+        )
+    }
+}
+```
+
+### 3. Handle Errors Gracefully
+
+Don't block users due to validation failures:
+
+```kotlin
+val result = vouch.validate(email)
+
+if (result.success && result.valid == true) {
+    // Proceed
+} else {
+    // Show user-friendly error but allow retry
+    showError(result.error ?: "Please check your email")
+}
+```
+
+### 4. Use StateFlow for UI Updates
+
+Combine with StateFlow for reactive UI updates:
+
+```kotlin
+class EmailViewModel(private val vouch: Vouch) : ViewModel() {
+    private val _state = MutableStateFlow(EmailState())
+    val state = _state.asStateFlow()
+
+    fun validate(email: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true) }
+
+            val result = vouch.validate(email)
+
+            _state.update { it.copy(
+                isLoading = false,
+                isValid = result.success && result.valid == true,
+                error = if (!result.success || result.valid != true) result.error else null
+            )}
+        }
+    }
+}
+```
+
+## API Reference
+
+### Vouch
+
+Main SDK class for email validation and fingerprinting.
+
+```kotlin
+class Vouch(
+    context: Context,
+    projectId: String,
+    apiKey: String,
+    options: VouchOptions = VouchOptions()
+) {
+    suspend fun validate(email: String): ValidationResult
+    suspend fun generateFingerprint(): Fingerprint
+}
+```
+
+### VouchOptions
+
+SDK configuration options.
+
+```kotlin
+data class VouchOptions(
+    val endpoint: String = "https://api.vouch.expert",
+    val version: ApiVersion = ApiVersion.Latest
+)
+```
+
+### ApiVersion
+
+API version specification.
+
+```kotlin
+sealed class ApiVersion {
+    object Latest : ApiVersion()  // Unversioned endpoint
+    data class Version(val number: Int) : ApiVersion()  // Versioned endpoint
+}
+```
+
+## Support
+
+For issues and questions:
+- **GitHub:** [github.com/vouch-platform/vouch-sdk](https://github.com/vouch-platform/vouch-sdk)
+- **Email:** support@vouch.expert
+- **Documentation:** [docs.vouch.expert](https://docs.vouch.expert)

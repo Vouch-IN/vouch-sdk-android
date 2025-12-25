@@ -1,0 +1,42 @@
+name: 🔄 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    name: 🧪 Build & Test
+    # Skip CI for release-please PRs and commits
+    if: "!startsWith(github.head_ref, 'release-please') && !contains(github.event.head_commit.message, 'chore: release')"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 📦 Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: 📚 Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: 🏗️ Build packages
+        run: pnpm build
+
+      - name: 🔍 Type check
+        run: pnpm check-types
+
+      - name: 🧹 Lint
+        run: pnpm lint
+
+      - name: ✅ Run tests
+        run: pnpm test
