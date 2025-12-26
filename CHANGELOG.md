@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.10](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.9...vouch-sdk-android-v0.1.10) (2025-12-26)
+
+
+### Bug Fixes
+
+* add timestamp and version fields to Fingerprint class ([c95c4c3](https://github.com/Vouch-IN/vouch-sdk-android/commit/c95c4c35a95f77dc5bda08e837fd686bb0aae41e))
+
 ## [0.1.9](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.8...vouch-sdk-android-v0.1.9) (2025-12-26)
 
 
