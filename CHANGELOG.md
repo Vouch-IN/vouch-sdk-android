@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.9](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.8...vouch-sdk-android-v0.1.9) (2025-12-26)
+
+
+### Bug Fixes
+
+* add Gradle wrapper files for JitPack builds ([ed76a50](https://github.com/Vouch-IN/vouch-sdk-android/commit/ed76a5068a0aaea1c14fd6b9ae9da0b9b2e08158))
+
 ## [0.1.8](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.7...vouch-sdk-android-v0.1.8) (2025-12-26)
 
 
