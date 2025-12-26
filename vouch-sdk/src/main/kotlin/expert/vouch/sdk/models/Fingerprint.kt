@@ -10,7 +10,9 @@ data class Fingerprint(
     val hardware: HardwareSignals,
     val fonts: FontSignals,
     val system: SystemSignals,
-    val storage: StorageSignals
+    val storage: StorageSignals,
+    val timestamp: Long,
+    val version: String
 )
 
 /**
