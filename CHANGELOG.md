@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.8](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.7...vouch-sdk-android-v0.1.8) (2025-12-26)
+
+
+### Features
+
+* initial Android SDK release ([a8e1214](https://github.com/Vouch-IN/vouch-sdk-android/commit/a8e1214a880f5e4fe603fe4ec7d024bc3058c158))
+
 ## [0.1.7](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.6...vouch-sdk-android-v0.1.7) (2025-12-21)
 
 
