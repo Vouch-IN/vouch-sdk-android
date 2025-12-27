@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.11](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.10...vouch-sdk-android-v0.1.11) (2025-12-27)
+
+
+### Features
+
+* JitPack publishing configuration ([0da5298](https://github.com/Vouch-IN/vouch-sdk-android/commit/0da5298e1b0b046769dbcc77646d59dd9add275b))
+
 ## [0.1.10](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.9...vouch-sdk-android-v0.1.10) (2025-12-26)
 
 
