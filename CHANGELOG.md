@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.12](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.11...vouch-sdk-android-v0.1.12) (2025-12-27)
+
+
+### Bug Fixes
+
+* update ValidationData to match API response format ([18c3bf9](https://github.com/Vouch-IN/vouch-sdk-android/commit/18c3bf9bb4cac90253c087abbe7b6be02f3ad344))
+
 ## [0.1.11](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.10...vouch-sdk-android-v0.1.11) (2025-12-27)
 
 
