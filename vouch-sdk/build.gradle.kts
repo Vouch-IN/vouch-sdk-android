@@ -71,9 +71,9 @@ afterEvaluate {
             create<MavenPublication>("release") {
                 from(components["release"])
 
-                groupId = "expert.vouch"
-                artifactId = "vouch-sdk"
-                version = "0.1.7"
+                groupId = "com.github.Vouch-IN"
+                artifactId = "vouch-sdk-android"
+                version = findProperty("version")?.toString() ?: "dev-SNAPSHOT"
 
                 pom {
                     name.set("Vouch SDK")
