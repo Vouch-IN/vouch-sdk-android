@@ -32,7 +32,16 @@ data class ValidationResult(
 sealed class ValidationData {
     @Serializable
     @SerialName("validation")
-    data class Validation(val response: ValidationResponseData) : ValidationData()
+    data class Validation(
+        val checks: ValidationChecks,
+        val metadata: ValidationMetadata,
+        val recommendation: ValidationResponseData.Recommendation,
+        val signals: List<String>
+    ) : ValidationData() {
+        // Provide response for backward compatibility
+        val response: ValidationResponseData
+            get() = ValidationResponseData(checks, metadata, recommendation, signals)
+    }
 
     @Serializable
     @SerialName("error")
