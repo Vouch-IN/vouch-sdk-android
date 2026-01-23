@@ -52,19 +52,10 @@ val vouch = Vouch(
 lifecycleScope.launch {
     val result = vouch.validate("user@example.com")
 
-    // Check the validation data
-    result.data?.let { data ->
-        when (data) {
-            is ValidationData.Validation -> {
-                println("✅ Email validated: ${result.email}")
-                println("Recommendation: ${data.response.recommendation}")
-                println("Signals: ${data.response.signals}")
-            }
-            is ValidationData.Error -> {
-                println("❌ Error: ${data.response.error}")
-                println("Message: ${data.response.message}")
-            }
-        }
+    if (result.isAllowed) {
+        println("Valid: ${result.email}")
+    } else {
+        println("Error: ${result.errorMessage}")
     }
 }
 ```
@@ -137,21 +128,10 @@ fun EmailValidationScreen() {
         }
 
         result?.let { res ->
-            res.data?.let { data ->
-                when (data) {
-                    is ValidationData.Validation -> {
-                        Column {
-                            Text("✓ ${res.email}", color = Color.Green)
-                            Text(
-                                "Recommendation: ${data.response.recommendation}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                    is ValidationData.Error -> {
-                        Text("✗ ${data.response.message}", color = Color.Red)
-                    }
-                }
+            if (res.isAllowed) {
+                Text("Valid: ${res.email}", color = Color.Green)
+            } else {
+                Text(res.errorMessage ?: "Validation failed", color = Color.Red)
             }
         }
     }
@@ -177,20 +157,11 @@ class EmailActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 val result = vouch.validate(emailEditText.text.toString())
 
-                result.data?.let { data ->
-                    when (data) {
-                        is ValidationData.Validation -> {
-                            val recommendation = data.response.recommendation
-                            resultTextView.text = "✓ ${result.email}\nRecommendation: $recommendation"
-                            resultTextView.setTextColor(Color.GREEN)
-                        }
-                        is ValidationData.Error -> {
-                            resultTextView.text = "✗ ${data.response.message}"
-                            resultTextView.setTextColor(Color.RED)
-                        }
-                    }
-                } ?: run {
-                    resultTextView.text = "✗ ${result.error}"
+                if (result.isAllowed) {
+                    resultTextView.text = "Valid email"
+                    resultTextView.setTextColor(Color.GREEN)
+                } else {
+                    resultTextView.text = result.errorMessage ?: "Invalid email"
                     resultTextView.setTextColor(Color.RED)
                 }
             }
@@ -266,62 +237,58 @@ The SDK starts fingerprint generation immediately when initialized, so the first
 
 ## Error Handling
 
-The SDK uses Kotlin's `suspend` functions and returns results with three levels of error handling:
-
-### 1. Network/Request Errors (result.error and statusCode)
+The SDK never throws from `validate()`. All errors (network failures, invalid format, API errors) are captured in the `ValidationResult`:
 
 ```kotlin
 val result = vouch.validate(email)
 
-if (result.error != null) {
-    when (result.statusCode) {
-        0 -> println("Network error: ${result.error}")
-        else -> println("Request failed: ${result.error}")
-    }
+if (result.isAllowed) {
+    // Proceed with sign-up
+} else {
+    // result.errorMessage contains a descriptive error for any failure:
+    // - "Invalid email format" (local validation)
+    // - "Network error: ..." (connectivity issues)
+    // - "Fingerprint generation failed: ..." (device signal error)
+    // - "Email blocked: block" (API rejected the email)
+    // - API error messages
+    showError(result.errorMessage ?: "Validation failed")
 }
 ```
 
-### 2. API Errors (in ValidationData.Error)
+### Accessing Detailed Error Info
+
+For cases where you need more control:
 
 ```kotlin
-result.data?.let { data ->
-    when (data) {
-        is ValidationData.Error -> {
-            // API returned an error (400 status, invalid format, etc.)
-            println("Error code: ${data.response.error}")  // e.g., "invalid_email"
-            println("Message: ${data.response.message}")  // e.g., "Email format is invalid"
-        }
-        is ValidationData.Validation -> {
-            // Handle successful validation
-            println("Recommendation: ${data.response.recommendation}")
-        }
-    }
-}
-```
+val result = vouch.validate(email)
 
-### 3. Handling Recommendations
-
-```kotlin
-result.data?.let { data ->
-    when (data) {
+if (result.data != null) {
+    when (val data = result.data) {
         is ValidationData.Validation -> {
-            when (data.response.recommendation) {
-                ValidationResponseData.Recommendation.ALLOW -> {
-                    // Email is safe to use
+            when (data.recommendation) {
+                "allow" -> {
+                    // Proceed
                 }
-                ValidationResponseData.Recommendation.FLAG -> {
-                    // Email flagged for review (e.g., disposable, alias)
-                    println("Signals: ${data.response.signals}")
+                "flag" -> {
+                    // Show warning but allow
+                    showWarning("Please verify your email")
                 }
-                ValidationResponseData.Recommendation.BLOCK -> {
-                    // Email should be blocked
+                else -> {
+                    // Blocked
+                    showError("Email not accepted")
                 }
             }
         }
         is ValidationData.Error -> {
-            // Handle error
+            // API returned a structured error
+            println("Error code: ${data.response.error}")   // e.g., "invalid_email"
+            println("Message: ${data.response.message}")    // e.g., "Email format is invalid"
         }
     }
+} else if (result.error != null) {
+    // Network or fingerprint error (no API response)
+    println("Error: ${result.error}")
+    println("Status code: ${result.statusCode ?: 0}")
 }
 ```
 

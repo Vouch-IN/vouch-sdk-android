@@ -42,7 +42,7 @@ internal class ApiClient(
         withContext(Dispatchers.IO) {
             try {
                 // Create request payload
-                val payload = ValidationRequest(
+                val payload = ValidationPayload(
                     email = email,
                     deviceSignals = fingerprint,
                     timestamp = fingerprint.timestamp,
@@ -119,10 +119,10 @@ internal class ApiClient(
 }
 
 /**
- * Request payload for email validation
+ * Internal request payload for email validation API call
  */
 @Serializable
-private data class ValidationRequest(
+private data class ValidationPayload(
     val email: String,
     val deviceSignals: Fingerprint,
     val timestamp: Long,

@@ -6,9 +6,22 @@ import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 
+// -- ValidationAction --
+
+/**
+ * Validation action enum
+ */
+@Serializable
+enum class ValidationAction {
+    @SerialName("allow") ALLOW,
+    @SerialName("block") BLOCK,
+    @SerialName("flag") FLAG
+}
+
+// -- ValidationResult --
+
 /**
  * Email validation response from API
- * Matches the TypeScript SDK ValidationResult interface
  */
 @Serializable
 data class ValidationResult(
@@ -23,7 +36,49 @@ data class ValidationResult(
 
     /** HTTP status code */
     val statusCode: Int? = null
-)
+) {
+    // -- Convenience Properties --
+
+    /** Whether the validation passed (recommendation is "allow") */
+    val isAllowed: Boolean
+        get() {
+            val validation = data as? ValidationData.Validation ?: return false
+            return validation.recommendation == "allow"
+        }
+
+    /** The recommendation string from the validation, if available */
+    val recommendation: String?
+        get() {
+            val validation = data as? ValidationData.Validation ?: return null
+            return validation.recommendation
+        }
+
+    /** The validation signals, if available */
+    val signals: List<String>?
+        get() {
+            val validation = data as? ValidationData.Validation ?: return null
+            return validation.signals
+        }
+
+    /** A descriptive error message for any failure scenario, null if allowed */
+    val errorMessage: String?
+        get() {
+            if (error != null) return error
+            if (data == null) return "Email validation failed"
+            return when (data) {
+                is ValidationData.Validation -> {
+                    if (data.recommendation != "allow") {
+                        data.message ?: "Email blocked: ${data.recommendation}"
+                    } else {
+                        null
+                    }
+                }
+                is ValidationData.Error -> data.response.message
+            }
+        }
+}
+
+// -- ValidationData --
 
 /**
  * Validation data - can be either a successful validation or an error
@@ -33,15 +88,12 @@ sealed class ValidationData {
     @Serializable
     @SerialName("validation")
     data class Validation(
-        val checks: ValidationChecks,
-        val metadata: ValidationMetadata,
-        val recommendation: ValidationResponseData.Recommendation,
-        val signals: List<String>
-    ) : ValidationData() {
-        // Provide response for backward compatibility
-        val response: ValidationResponseData
-            get() = ValidationResponseData(checks, metadata, recommendation, signals)
-    }
+        val checks: Map<String, CheckResult> = emptyMap(),
+        val message: String? = null,
+        val metadata: ValidationMetadata = ValidationMetadata(),
+        val recommendation: String,
+        val signals: List<String> = emptyList()
+    ) : ValidationData()
 
     @Serializable
     @SerialName("error")
@@ -58,55 +110,122 @@ object ValidationDataSerializer : JsonContentPolymorphicSerializer<ValidationDat
     }
 }
 
-/**
- * Successful validation response
- */
-@Serializable
-data class ValidationResponseData(
-    val checks: ValidationChecks,
-    val metadata: ValidationMetadata,
-    val recommendation: Recommendation,
-    val signals: List<String>
-) {
-    @Serializable
-    enum class Recommendation {
-        @SerialName("allow") ALLOW,
-        @SerialName("block") BLOCK,
-        @SerialName("flag") FLAG
-    }
-}
-
-/**
- * Validation checks results
- */
-@Serializable
-data class ValidationChecks(
-    val syntax: CheckResult? = null,
-    val alias: CheckResult? = null,
-    val disposable: CheckResult? = null,
-    val ip: CheckResult? = null,
-    val mx: CheckResult? = null
-)
+// -- CheckResult --
 
 /**
  * Individual check result
  */
 @Serializable
 data class CheckResult(
-    val latency: Int,
-    val pass: Boolean,
-    val error: String? = null
+    val error: String? = null,
+    val latency: Int = 0,
+    val metadata: Map<String, JsonElement>? = null,
+    val pass: Boolean = false
 )
+
+// -- DeviceData --
+
+/**
+ * Device fingerprint data
+ */
+@Serializable
+data class DeviceData(
+    val emailsUsed: Int = 0,
+    val firstSeen: Int = 0,
+    val isKnownDevice: Boolean = false,
+    val isNewEmail: Boolean = false,
+    val lastSeen: Int? = null,
+    val previousSignups: Int = 0
+)
+
+// -- IPData --
+
+/**
+ * IP address analysis data
+ */
+@Serializable
+data class IPData(
+    val ip: String,
+    /** True if VPN, Tor, or datacenter IP detected */
+    val isAnonymous: Boolean = false,
+    val isFraud: Boolean = false
+)
+
+// -- ValidationRequest --
+
+/**
+ * Validation request data combining body and header values
+ */
+@Serializable
+data class ValidationRequest(
+    val email: String,
+    val fingerprintHash: String? = null,
+    val ip: String? = null,
+    /** Extracted from x-project-id header */
+    val projectId: String,
+    val sdkVersion: String? = null,
+    val userAgent: String? = null,
+    val validations: ValidationToggles? = null
+)
+
+// -- ValidationResponse --
+
+/**
+ * Successful validation response
+ */
+@Serializable
+data class ValidationResponse(
+    val checks: Map<String, CheckResult> = emptyMap(),
+    val message: String? = null,
+    val metadata: ValidationMetadata = ValidationMetadata(),
+    val recommendation: String,
+    val signals: List<String> = emptyList()
+)
+
+// -- ValidationResults --
+
+/**
+ * Full validation results including device and IP data
+ */
+@Serializable
+data class ValidationResults(
+    val checks: Map<String, CheckResult> = emptyMap(),
+    val deviceData: DeviceData? = null,
+    val ipData: IPData? = null,
+    val signals: List<String> = emptyList()
+)
+
+// -- ValidationMetadata --
 
 /**
  * Validation metadata
  */
 @Serializable
 data class ValidationMetadata(
-    val fingerprintId: String? = null,
-    val previousSignups: Int,
-    val totalLatency: Int
+    val fingerprintHash: String? = null,
+    val previousSignups: Int = 0,
+    val totalLatency: Int = 0
 )
+
+// -- ValidationToggles --
+
+/**
+ * Toggle configuration for which validations to run
+ */
+@Serializable
+data class ValidationToggles(
+    val alias: ValidationAction? = null,
+    val catchall: ValidationAction? = null,
+    val device: ValidationAction? = null,
+    val disposable: ValidationAction? = null,
+    val ip: ValidationAction? = null,
+    val mx: ValidationAction? = null,
+    val roleEmail: ValidationAction? = null,
+    val smtp: ValidationAction? = null,
+    val syntax: ValidationAction? = null
+)
+
+// -- ErrorResponseData --
 
 /**
  * Error response
