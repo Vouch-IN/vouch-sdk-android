@@ -33,17 +33,10 @@ import kotlinx.coroutines.async
  *
  * // Validate email against API with device fingerprint
  * val result = vouch.validate("user@example.com")
- * when (result.data) {
- *     is ValidationData.Validation -> {
- *         val recommendation = result.data.response.recommendation
- *         when (recommendation) {
- *             ValidationResponseData.Recommendation.ALLOW -> println("Email allowed")
- *             ValidationResponseData.Recommendation.BLOCK -> println("Email blocked")
- *             ValidationResponseData.Recommendation.FLAG -> println("Email flagged")
- *         }
- *     }
- *     is ValidationData.Error -> println("Error: ${result.error}")
- *     null -> println("No response data")
+ * if (result.isAllowed) {
+ *     println("Valid: ${result.email}")
+ * } else {
+ *     println("Error: ${result.errorMessage}")
  * }
  *
  * // Get fingerprint directly
@@ -86,22 +79,22 @@ class Vouch(
      * Validate an email address
      *
      * Performs local format validation first, then sends to API with device fingerprint.
+     * Never throws - errors are returned in the result's `error` and `errorMessage` properties.
      *
      * @param email Email address to validate
-     * @return Validation result from API
+     * @return Validation result (check `isAllowed` or `errorMessage`)
      */
     suspend fun validate(email: String): ValidationResult {
         // Local validation first
         val normalizedEmail = EmailValidator.validate(email)
         if (normalizedEmail == null) {
-            val errorData = ErrorResponseData(
-                error = "invalid_email",
-                message = "Invalid email format"
-            )
             return ValidationResult(
                 email = null,
                 error = "Invalid email format",
-                data = ValidationData.Error(errorData),
+                data = ValidationData.Error(ErrorResponseData(
+                    error = "invalid_email",
+                    message = "Invalid email format"
+                )),
                 statusCode = 400
             )
         }
@@ -110,15 +103,11 @@ class Vouch(
         val fingerprint = try {
             fingerprintDeferred.await()
         } catch (e: Exception) {
-            val errorData = ErrorResponseData(
-                error = "fingerprint_error",
-                message = "Fingerprint generation failed: ${e.message}"
-            )
             return ValidationResult(
-                email = null,
+                email = normalizedEmail,
                 error = "Fingerprint generation failed: ${e.message}",
-                data = ValidationData.Error(errorData),
-                statusCode = 0
+                data = null,
+                statusCode = null
             )
         }
 
@@ -126,15 +115,11 @@ class Vouch(
         return try {
             apiClient.validate(normalizedEmail, fingerprint)
         } catch (e: Exception) {
-            val errorData = ErrorResponseData(
-                error = "network_error",
-                message = "Network error: ${e.message}"
-            )
             ValidationResult(
-                email = null,
+                email = normalizedEmail,
                 error = "Network error: ${e.message}",
-                data = ValidationData.Error(errorData),
-                statusCode = 0
+                data = null,
+                statusCode = null
             )
         }
     }
