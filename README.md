@@ -203,6 +203,132 @@ data class VouchOptions(
 )
 ```
 
+### ValidationAction
+
+Validation action enum used in toggle configuration.
+
+```kotlin
+enum class ValidationAction {
+    ALLOW,
+    BLOCK,
+    FLAG
+}
+```
+
+### ValidationResult
+
+Email validation response structure with convenience properties.
+
+```kotlin
+data class ValidationResult(
+    val email: String?,
+    val error: String?,
+    val data: ValidationData?,
+    val statusCode: Int?
+) {
+    // Convenience properties
+    val isAllowed: Boolean
+    val recommendation: String?
+    val signals: List<String>?
+    val errorMessage: String?
+}
+```
+
+### ValidationData
+
+Validation response data — sealed class with two cases.
+
+```kotlin
+sealed class ValidationData {
+    data class Validation(
+        val checks: Map<String, CheckResult>,
+        val message: String?,
+        val metadata: ValidationMetadata,
+        val recommendation: String,  // "allow", "block", or "flag"
+        val signals: List<String>
+    ) : ValidationData()
+
+    data class Error(val response: ErrorResponseData) : ValidationData()
+}
+```
+
+### CheckResult
+
+Individual check result.
+
+```kotlin
+data class CheckResult(
+    val error: String?,
+    val latency: Int,
+    val metadata: Map<String, JsonElement>?,
+    val pass: Boolean
+)
+```
+
+### ValidationMetadata
+
+```kotlin
+data class ValidationMetadata(
+    val fingerprintHash: String?,
+    val previousSignups: Int,
+    val totalLatency: Int
+)
+```
+
+### DeviceData
+
+Device fingerprint data returned in validation results.
+
+```kotlin
+data class DeviceData(
+    val emailsUsed: Int,
+    val firstSeen: Int,
+    val isKnownDevice: Boolean,
+    val isNewEmail: Boolean,
+    val lastSeen: Int?,
+    val previousSignups: Int
+)
+```
+
+### IPData
+
+IP address analysis data.
+
+```kotlin
+data class IPData(
+    val ip: String,
+    val isAnonymous: Boolean,  // True if VPN, Tor, or datacenter IP detected
+    val isFraud: Boolean
+)
+```
+
+### ValidationToggles
+
+Toggle configuration for which validations to run.
+
+```kotlin
+data class ValidationToggles(
+    val alias: ValidationAction?,
+    val catchall: ValidationAction?,
+    val device: ValidationAction?,
+    val disposable: ValidationAction?,
+    val ip: ValidationAction?,
+    val mx: ValidationAction?,
+    val roleEmail: ValidationAction?,
+    val smtp: ValidationAction?,
+    val syntax: ValidationAction?
+)
+```
+
+### ErrorResponseData
+
+```kotlin
+data class ErrorResponseData(
+    val error: String,
+    val message: String
+)
+```
+
 ### Signal Types
 
 The SDK collects the following signal categories:
