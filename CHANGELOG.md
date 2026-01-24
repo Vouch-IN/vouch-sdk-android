@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.13](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.12...vouch-sdk-android-v0.1.13) (2026-01-24)
+
+
+### Features
+
+* **validation:** refactor validation result logic ([db2c351](https://github.com/Vouch-IN/vouch-sdk-android/commit/db2c35190dd93fc7d26422f1f54ce696c875c06e))
+* **validation:** refactor validation result logic ([9b68330](https://github.com/Vouch-IN/vouch-sdk-android/commit/9b68330c983eb065eafac843474366cf17496273))
+
 ## [0.1.12](https://github.com/Vouch-IN/vouch-sdk-android/compare/vouch-sdk-android-v0.1.11...vouch-sdk-android-v0.1.12) (2025-12-27)
 
 
