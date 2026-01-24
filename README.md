@@ -29,7 +29,7 @@ Add the dependency to your app's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.Vouch-IN:vouch-sdk-android:v0.1.7")
+    implementation("com.github.Vouch-IN:vouch-sdk-android:vouch-sdk-android-v0.1.12")
 }
 ```
 
